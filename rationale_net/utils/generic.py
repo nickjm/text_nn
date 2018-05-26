@@ -3,6 +3,8 @@ import pdb
 import argparse
 
 def tensor_to_numpy(tensor):
+    if tensor.data.shape == torch.Size([]):
+        return tensor.item()
     return tensor.data[0]
 
 class Namespace:
