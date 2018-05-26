@@ -12,6 +12,15 @@ class Namespace:
         self.__dict__.update(kwargs)
 
 
+def write_predictions(file_path, probablites, sentences, rationales):
+    with open(file_path, 'w') as f:
+        # for i, (probs, sentence, mask) in enumerate(zip(probablites, sentences, rationales)):
+        #     f.write("\t".join((str(i), str(probs), sentence, str(mask)))+'\n')
+        for i, (probs, sentence, mask) in enumerate(zip(probablites, sentences, rationales)):
+            # print(mask)
+            rationale = " ".join([word for i, word in enumerate(sentence.split()) if mask[i] == 1.])
+            f.write("\t".join((str(i), str(probs), rationale))+'\n')
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Rationale-Net Classifier')
     #setup
@@ -36,6 +45,7 @@ def parse_args():
     #paths
     parser.add_argument('--save_dir', type=str, default='snapshot', help='where to save the snapshot')
     parser.add_argument('--results_path', type=str, default='', help='where to dump model config and epoch stats')
+    parser.add_argument('--save_out_path', type=str, default='outputs.tsv', help='where to save model outputs on test')
     parser.add_argument('--summary_path', type=str, default='results/summary.csv', help='where to dump model config and epoch stats')
     parser.add_argument('--snapshot', type=str, default=None, help='filename of model snapshot to load[default: None]')
     # data loading

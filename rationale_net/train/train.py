@@ -11,6 +11,8 @@ import numpy as np
 import pdb
 import sklearn.metrics
 import rationale_net.utils.train as utils
+from sklearn.metrics import precision_recall_fscore_support as prfs
+
 
 def train_model(train_data, dev_data, model, gen, args):
     '''
@@ -70,7 +72,7 @@ def train_model(train_data, dev_data, model, gen, args):
             train_model = mode == 'Train'
             print('{}'.format(mode))
             key_prefix = mode.lower()
-            epoch_details, step, _, _, _ = run_epoch(
+            epoch_details, step, _, _, _, _, _, _ = run_epoch(
                 data_loader=loader,
                 train_model=train_model,
                 model=model,
@@ -145,7 +147,7 @@ def test_model(test_data, model, gen, args):
     train_model = False
     key_prefix = mode.lower()
     print("-------------\nTest")
-    epoch_details, _, losses, preds, golds = run_epoch(
+    epoch_details, _, losses, preds, golds, probs, sentences, rationales = run_epoch(
         data_loader=test_loader,
         train_model=train_model,
         model=model,
@@ -160,6 +162,8 @@ def test_model(test_data, model, gen, args):
     test_stats['golds'] = golds
 
     print(log_statement)
+
+    generic.write_predictions(args.save_out_path, probs, sentences, rationales)
 
     return test_stats
 
@@ -177,6 +181,9 @@ def run_epoch(data_loader, train_model, model, gen, optimizer, step, args):
     preds = []
     golds = []
     losses = []
+    probs = []
+    sentences = []
+    rationales = []
 
     if train_model:
         model.train()
@@ -238,6 +245,9 @@ def run_epoch(data_loader, train_model, model, gen, optimizer, step, args):
             torch.max(logit.data,
                       1)[1].view(y.size()).cpu().numpy())  # Record predictions
         golds.extend(batch['y'].numpy())
+        probs.extend(torch.sigmoid(logit.data).cpu().numpy())
+        sentences.extend(text)
+        rationales.extend(mask)
 
 
     if args.objective  in ['cross_entropy', 'margin']:
@@ -246,19 +256,26 @@ def run_epoch(data_loader, train_model, model, gen, optimizer, step, args):
     elif args.objective == 'mse':
         metric = sklearn.metrics.mean_squared_error(y_true=golds, y_pred=preds)
         confusion_matrix = "NA"
+    if args.num_class == 2:
+        precision, recall, f1, support = prfs(golds, preds, average='binary')
+    # precision, recall, f1, support = prfs(targets, preds)
 
     epoch_stat = {
         'loss' : np.mean(losses),
         'obj_loss': np.mean(obj_losses),
         'metric':metric,
-        'confusion_matrix': confusion_matrix 
+        'confusion_matrix': confusion_matrix,
+        'precision': precision,
+        'recall': recall,
+        'f1_score': f1,
+        'support': support
     }
 
     if args.get_rationales:
         epoch_stat['k_selection_loss'] = np.mean(k_selection_losses)
         epoch_stat['k_continuity_loss'] = np.mean(k_continuity_losses)
 
-    return epoch_stat, step,  losses, preds, golds
+    return epoch_stat, step,  losses, preds, golds, probs, sentences, rationales
 
 
 def get_loss(logit,y, args ):
